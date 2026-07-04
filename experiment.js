@@ -11,7 +11,7 @@
 // GOOGLE_SHEET_WEB_APP_URL below and README.md) so data is collected
 // centrally without requiring participants to send back a CSV file.
 
-const GOOGLE_SHEET_WEB_APP_URL = "PASTE_YOUR_DEPLOYED_WEB_APP_URL_HERE";
+const GOOGLE_SHEET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw9sFFFr6WoIIJuRuHv4z1Wnezf6eE-PPcqGUMP0J30ez37OVFfF6egMeiVzBZX8sh6pw/exec";
 
 const CONFIG = {
   TRIALS_CSV_PATH: "./trials.csv",
