@@ -1,13 +1,20 @@
 // Google Apps Script — receives one POST per completed trial from
-// similarity_rating_pretest/experiment.js and appends a row to the
-// "responses" tab. Also receives one POST per participant when they reach
-// the end page (submitCompletion() in experiment.js, `type: "completion"`),
-// which is routed to a separate "completions" tab instead — use that tab to
-// filter out participants who dropped out partway through before treating
-// their "responses" rows as valid. See README.md section "Server-side data
-// collection" for the full copy-paste deployment steps.
+// similarity_rating_pretest/experiment.js and appends a row to a
+// PER-PARTICIPANT tab (one tab per participant_id, e.g. "P01") — appropriate
+// for small studies (well under Google Sheets' ~200-tab-per-spreadsheet
+// limit; do NOT use this per-participant layout for large-N online studies,
+// switch back to one shared "responses" tab instead, see git history).
+//
+// Also receives one POST per participant when they reach the end page
+// (submitCompletion() in experiment.js, `type: "completion"`), which is
+// routed to a single SHARED "completions" tab (not split per participant —
+// it's a small roster/overview, easiest to keep in one place) — use that
+// tab to filter out participants who dropped out partway through before
+// treating their per-participant tab's rows as valid.
+//
+// See README.md section "Server-side data collection" for the full
+// copy-paste deployment steps.
 
-const SHEET_NAME = "responses";
 const COMPLETIONS_SHEET_NAME = "completions";
 
 const COLUMNS = [
@@ -26,10 +33,21 @@ const COMPLETION_COLUMNS = [
 function doPost(e) {
   const data = JSON.parse(e.postData.contents);
 
-  if (data.type === "completion") {
-    appendCompletion_(data);
-  } else {
-    appendTrialResponse_(data);
+  // Multiple participants can submit at the same moment. LockService
+  // serializes concurrent executions so two simultaneous requests can't both
+  // see "sheet/tab doesn't exist yet" and race to create it, or otherwise
+  // interleave writes. Each request waits its turn (up to 30s) rather than
+  // running in parallel with another write.
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (data.type === "completion") {
+      appendCompletion_(data);
+    } else {
+      appendTrialResponse_(data);
+    }
+  } finally {
+    lock.releaseLock();
   }
 
   return ContentService
@@ -44,7 +62,8 @@ function doGet(e) {
 }
 
 function appendTrialResponse_(data) {
-  const sheet = getOrCreateSheet_(SHEET_NAME);
+  const tabName = participantTabName_(data.participant_id);
+  const sheet = getOrCreateSheet_(tabName);
   ensureHeader_(sheet, COLUMNS);
   const row = COLUMNS.map(col => (data[col] === undefined || data[col] === null) ? "" : data[col]);
   row.push(new Date().toISOString()); // server_received_at, for auditing/debugging and dedup on revision
@@ -57,6 +76,17 @@ function appendCompletion_(data) {
   const row = COMPLETION_COLUMNS.map(col => (data[col] === undefined || data[col] === null) ? "" : data[col]);
   row.push(new Date().toISOString()); // server_received_at
   sheet.appendRow(row);
+}
+
+// Google Sheets tab names can't contain [ ] * ? / \ : , can't be blank, and
+// are capped at 100 characters. Falls back to "unknown_participant" if the
+// participant_id is empty/missing after sanitizing.
+function participantTabName_(participantId) {
+  const cleaned = String(participantId || "")
+    .replace(/[\[\]\*\?\/\\:]/g, "_")
+    .trim()
+    .slice(0, 90); // leave headroom below the 100-char limit
+  return cleaned.length > 0 ? cleaned : "unknown_participant";
 }
 
 function getOrCreateSheet_(name) {

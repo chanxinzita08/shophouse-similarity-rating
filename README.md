@@ -187,6 +187,14 @@ re-confirming a trial you revisited via **Back**), the result is:
    save less often than this — the write is local and effectively free).
 3. **POSTed to the Google Sheets Web App** (`submitToSheet()` in
    `experiment.js`) — this is the real, centralized data collection.
+   `Code.gs` writes it to a **per-participant tab**, named after
+   `participant_id` (e.g. a participant who enters `P01` gets their own tab
+   called `P01`, auto-created on their first submitted trial). This layout
+   is intentional for this study's expected scale (well under 30
+   participants) — Google Sheets caps a spreadsheet at roughly 200 tabs, so
+   **do not reuse this per-participant-tab design for a large-N online
+   study**; switch back to one shared tab (see git history / ask to revert)
+   if participant count could approach that limit.
 
 **This is fire-and-forget, not blocking.** `submitToSheet()`'s `fetch(...)`
 call is never `await`-ed, and the "Next" button's click handler calls
@@ -198,15 +206,23 @@ given row just arrives at the Sheet a bit late (or, if `fetch` truly fails,
 not at all — but it's always safe in `localStorage`, and in the downloaded
 CSV, regardless).
 
-**Important: revisiting and changing an answer sends a *new* row to the
-Sheet rather than editing the old one** — Apps Script's `appendRow` only
-appends, it doesn't look up and update existing rows. So if a participant
-uses Back to change trial 42 from a 3 to a 6, the Sheet will end up with
-*two* rows for `trial_index_global = 42` (same `participant_id`), one with
-`similarity_rating = 3` and an earlier `server_received_at`, one with `6`
-and a later one. The downloaded CSV (`exportResults()` / Download CSV
-button) does NOT have this issue — it always reflects the current, final
-in-memory state of `trialRecords[]`, one row per trial.
+**Important: revisiting and changing an answer sends a *new* row rather
+than editing the old one** — Apps Script's `appendRow` only appends, it
+doesn't look up and update existing rows. So if a participant uses Back to
+change trial 42 from a 3 to a 6, their tab will end up with *two* rows for
+`trial_index_global = 42`, one with `similarity_rating = 3` and an earlier
+`server_received_at`, one with `6` and a later one. The downloaded CSV
+(`exportResults()` / Download CSV button) does NOT have this issue — it
+always reflects the current, final in-memory state of `trialRecords[]`, one
+row per trial.
+
+**Concurrent submissions are serialized with `LockService`**: if two
+participants submit at close to the same instant, `doPost` in `Code.gs`
+acquires a script-wide lock before touching any sheet/tab, so one request
+always fully finishes writing (including creating a new tab, if that
+participant's first trial) before the next one starts — this avoids a race
+where two simultaneous "does this tab exist yet?" checks could both say no
+and try to create it at once.
 
 Sending per-trial (rather than one bulk upload at the end) means a
 participant who closes the tab partway through still leaves their completed
@@ -235,24 +251,26 @@ participant_id, completed=true, completion_time, total_answered
 ```
 
 `Code.gs` detects this payload (`type: "completion"`) and routes it to a
-**separate `completions` sheet tab**, auto-created on first use, instead of
-mixing it into the `responses` tab. Use this tab to tell who actually
+**single shared `completions` sheet tab** (unlike the per-participant
+`responses` tabs — a completion roster is small and easiest to keep in one
+place), auto-created on first use. Use this tab to tell who actually
 finished vs. who dropped out partway through — anyone who closed the tab
-early will have rows in `responses` but no row in `completions`.
+early will have rows in their own per-participant tab but no row in
+`completions`.
 
 **If you already deployed an earlier version of `Code.gs`** (before this
-`completions` tab existed), you need to re-paste the updated
-`google_apps_script/Code.gs` into your Apps Script project and create a
-**new deployment version** (Deploy → Manage deployments → edit → New
-version → Deploy) for this to take effect — just saving the script isn't
-enough, same as any other `Code.gs` change.
+`completions` tab / per-participant-tab layout existed), you need to
+re-paste the updated `google_apps_script/Code.gs` into your Apps Script
+project and create a **new deployment version** (Deploy → Manage
+deployments → edit → New version → Deploy) for this to take effect — just
+saving the script isn't enough, same as any other `Code.gs` change.
 
 ### Cleaning rules before analysis
 
 When you pull data out of the Sheet for analysis, apply both of these:
 
-1. **Dedupe `responses` rows**: group by `(participant_id,
-   trial_index_global)`, keep only the row with the latest
+1. **Dedupe each participant's tab**: group by `trial_index_global` (within
+   that one participant's tab), keep only the row with the latest
    `server_received_at` (falls back to `timestamp` if needed) — this is the
    participant's final answer for that trial after any Back-revisions.
 2. **Filter to completed participants only**: keep only `participant_id`
