@@ -234,10 +234,20 @@ page still works end-to-end (rating/Next/Back/etc.), it just logs a console
 warning and doesn't send anywhere except `localStorage` and the optional
 CSV download — useful for local testing without a deployed Sheet.
 
-There's no participant authentication or duplicate-submission protection
-beyond `participant_id` being whatever the participant typed in — if you
-need to guard against the same person submitting twice, dedupe on
-`participant_id` when analyzing the Sheet.
+**The typed Participant ID is auto-suffixed on repeat attempts, same
+browser**: `resolveParticipantId()` in `experiment.js` checks `localStorage`
+for how many times this exact ID has been started on this device — the
+first attempt keeps the ID unchanged (e.g. `P01`), a second attempt (someone
+answered halfway, closed the tab, and came back to restart) becomes
+`P01_02`, a third `P01_03`, etc. This is the ID used everywhere downstream
+(Sheet tab name, `localStorage` key, CSV filename), so a partial attempt
+naturally lands in its own separate Sheet tab instead of overwriting or
+merging with a later complete one — you can spot abandoned attempts just by
+seeing a `_02`/`_03` tab with fewer than 360 rows and no matching row in
+`completions`. This only distinguishes repeat attempts *on the same
+browser* — it doesn't prevent two different participants from typing the
+exact same ID on different devices; if you need to guard against that too,
+dedupe/cross-check `participant_id` manually when analyzing.
 
 ### Completion tracking (the `completions` tab)
 

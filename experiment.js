@@ -348,11 +348,24 @@ function participantInfoNode() {
     on_finish: (data) => {
       const r = data.response;
       participantInfo = {
-        participant_id: r.participant_id, age: r.age, gender: r.gender || "",
+        participant_id: resolveParticipantId(r.participant_id), age: r.age, gender: r.gender || "",
         background: r.background, familiarity: r.familiarity,
       };
     },
   };
+}
+
+// Appends _02, _03, ... if this exact ID has already been started on this
+// browser before (e.g. someone answered halfway, closed the tab, and came
+// back to restart) — first attempt keeps the ID unchanged. This is what
+// gets used everywhere downstream (Sheet tab name, localStorage key, CSV
+// filename), so a partial attempt naturally ends up in its own separate
+// Sheet tab instead of overwriting/merging with a later complete one.
+function resolveParticipantId(rawId) {
+  const key = "similarity_rating_attempt_count_" + rawId;
+  const count = parseInt(localStorage.getItem(key) || "0", 10) + 1;
+  localStorage.setItem(key, String(count));
+  return count === 1 ? rawId : `${rawId}_${String(count).padStart(2, "0")}`;
 }
 
 const instructionsNode = infoPage(`
