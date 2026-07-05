@@ -372,15 +372,19 @@ function exportResults() {
 function infoPage(html, continueText) {
   return {
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<div class="info-page">${html}
-      <button type="button" id="continue-btn" class="jspsych-btn">Continue</button>
-      <p class="continue-hint">${continueText || "Press SPACE or tap Continue"}</p>
+    stimulus: `<div class="info-page" id="info-page-tap-target">${html}
+      <button type="button" class="jspsych-btn">Continue</button>
+      <p class="continue-hint">${continueText || "Press SPACE or tap anywhere to continue"}</p>
     </div>`,
     choices: [" "],
     on_load: () => {
-      document.getElementById("continue-btn").addEventListener("click", () => {
+      // Whole box is tappable, not just the button — more reliable on
+      // mobile/tablet than relying on a single small button hitting exactly
+      // right. { once: true } prevents the button's own click bubbling up
+      // to this same listener and firing finishTrial() twice.
+      document.getElementById("info-page-tap-target").addEventListener("click", () => {
         jsPsychInstance.finishTrial();
-      });
+      }, { once: true });
     },
   };
 }

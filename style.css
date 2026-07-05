@@ -188,6 +188,7 @@ html, body {
   border-radius: 10px;
   max-width: 720px;
   margin: 40px auto;
+  cursor: pointer; /* whole box advances the page, not just the Continue button */
 }
 
 .info-page h2 {
