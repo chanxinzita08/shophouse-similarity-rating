@@ -129,6 +129,29 @@ function submitToSheet(record) {
   }).catch((e) => console.warn("submitToSheet failed:", e));
 }
 
+// Sent once, when the participant reaches the end page having answered all
+// trials. Lets the researcher filter out anyone who dropped out partway
+// through — see Code.gs, which routes this to a separate "completions" tab
+// instead of the per-trial "responses" tab (detected via `type: "completion"`).
+function submitCompletion() {
+  const payload = {
+    type: "completion",
+    participant_id: participantInfo.participant_id || "",
+    completed: true,
+    completion_time: new Date().toISOString(),
+    total_answered: trialRecords.filter(r => r.similarity_rating !== null).length,
+  };
+  if (!GOOGLE_SHEET_WEB_APP_URL || GOOGLE_SHEET_WEB_APP_URL.startsWith("PASTE_")) {
+    console.warn("GOOGLE_SHEET_WEB_APP_URL not configured — completion not sent to server.");
+    return;
+  }
+  fetch(GOOGLE_SHEET_WEB_APP_URL, {
+    method: "POST",
+    mode: "no-cors",
+    body: JSON.stringify(payload),
+  }).catch((e) => console.warn("submitCompletion failed:", e));
+}
+
 // =============================================================================
 // Trial records (one per trial, built once up front) + a single custom
 // screen that renders whichever trial `currentIndex` points at, with
@@ -358,13 +381,14 @@ function endNode() {
     type: jsPsychHtmlKeyboardResponse,
     stimulus: `<div class="info-page">
       <h2>All done</h2>
-      <p>Thank you for taking part. Your responses have already been sent
-      in automatically as you went. You can also download a personal copy of
+      <p>All responses have been saved. You may now close this page.</p>
+      <p>Thank you for taking part. You can also download a personal copy of
       your results below if you'd like.</p>
       <button id="download-btn" class="jspsych-btn">Download CSV</button>
     </div>`,
     choices: "NO_KEYS",
     on_load: () => {
+      submitCompletion();
       document.getElementById("download-btn").addEventListener("click", exportResults);
     },
   };

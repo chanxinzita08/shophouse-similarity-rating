@@ -1,9 +1,14 @@
 // Google Apps Script — receives one POST per completed trial from
-// similarity_rating_pretest/experiment.js and appends a row to this
-// spreadsheet. See README.md section "Server-side data collection" for the
-// full copy-paste deployment steps.
+// similarity_rating_pretest/experiment.js and appends a row to the
+// "responses" tab. Also receives one POST per participant when they reach
+// the end page (submitCompletion() in experiment.js, `type: "completion"`),
+// which is routed to a separate "completions" tab instead — use that tab to
+// filter out participants who dropped out partway through before treating
+// their "responses" rows as valid. See README.md section "Server-side data
+// collection" for the full copy-paste deployment steps.
 
 const SHEET_NAME = "responses";
+const COMPLETIONS_SHEET_NAME = "completions";
 
 const COLUMNS = [
   "participant_id", "trial_index_global", "trial_id", "condition",
@@ -14,15 +19,18 @@ const COLUMNS = [
   "trial_end_time", "timestamp",
 ];
 
+const COMPLETION_COLUMNS = [
+  "participant_id", "completed", "completion_time", "total_answered",
+];
+
 function doPost(e) {
-  const sheet = getOrCreateSheet_();
   const data = JSON.parse(e.postData.contents);
 
-  ensureHeader_(sheet);
-
-  const row = COLUMNS.map(col => (data[col] === undefined || data[col] === null) ? "" : data[col]);
-  row.push(new Date().toISOString()); // server_received_at, for auditing/debugging only
-  sheet.appendRow(row);
+  if (data.type === "completion") {
+    appendCompletion_(data);
+  } else {
+    appendTrialResponse_(data);
+  }
 
   return ContentService
     .createTextOutput(JSON.stringify({ status: "ok" }))
@@ -35,15 +43,31 @@ function doGet(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function getOrCreateSheet_() {
+function appendTrialResponse_(data) {
+  const sheet = getOrCreateSheet_(SHEET_NAME);
+  ensureHeader_(sheet, COLUMNS);
+  const row = COLUMNS.map(col => (data[col] === undefined || data[col] === null) ? "" : data[col]);
+  row.push(new Date().toISOString()); // server_received_at, for auditing/debugging and dedup on revision
+  sheet.appendRow(row);
+}
+
+function appendCompletion_(data) {
+  const sheet = getOrCreateSheet_(COMPLETIONS_SHEET_NAME);
+  ensureHeader_(sheet, COMPLETION_COLUMNS);
+  const row = COMPLETION_COLUMNS.map(col => (data[col] === undefined || data[col] === null) ? "" : data[col]);
+  row.push(new Date().toISOString()); // server_received_at
+  sheet.appendRow(row);
+}
+
+function getOrCreateSheet_(name) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let sheet = ss.getSheetByName(SHEET_NAME);
-  if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
   return sheet;
 }
 
-function ensureHeader_(sheet) {
+function ensureHeader_(sheet, columns) {
   if (sheet.getLastRow() === 0) {
-    sheet.appendRow([...COLUMNS, "server_received_at"]);
+    sheet.appendRow([...columns, "server_received_at"]);
   }
 }

@@ -188,18 +188,25 @@ re-confirming a trial you revisited via **Back**), the result is:
 3. **POSTed to the Google Sheets Web App** (`submitToSheet()` in
    `experiment.js`) — this is the real, centralized data collection.
 
+**This is fire-and-forget, not blocking.** `submitToSheet()`'s `fetch(...)`
+call is never `await`-ed, and the "Next" button's click handler calls
+`finalizeRecord()` then immediately advances `currentIndex` / re-renders the
+next trial in the same synchronous call — it does not wait for the Google
+Sheets request to resolve (or fail). So a slow or flaky connection cannot
+stall or block the participant from moving to the next trial; worst case, a
+given row just arrives at the Sheet a bit late (or, if `fetch` truly fails,
+not at all — but it's always safe in `localStorage`, and in the downloaded
+CSV, regardless).
+
 **Important: revisiting and changing an answer sends a *new* row to the
 Sheet rather than editing the old one** — Apps Script's `appendRow` only
 appends, it doesn't look up and update existing rows. So if a participant
 uses Back to change trial 42 from a 3 to a 6, the Sheet will end up with
 *two* rows for `trial_index_global = 42` (same `participant_id`), one with
 `similarity_rating = 3` and an earlier `server_received_at`, one with `6`
-and a later one. **When analyzing the Sheet, group by
-`(participant_id, trial_index_global)` and keep only the row with the
-latest `server_received_at` (or `timestamp`)** to get each trial's final
-answer. The downloaded CSV (`exportResults()` / Download CSV button) does
-NOT have this issue — it always reflects the current, final in-memory
-state of `trialRecords[]`, one row per trial.
+and a later one. The downloaded CSV (`exportResults()` / Download CSV
+button) does NOT have this issue — it always reflects the current, final
+in-memory state of `trialRecords[]`, one row per trial.
 
 Sending per-trial (rather than one bulk upload at the end) means a
 participant who closes the tab partway through still leaves their completed
@@ -215,6 +222,43 @@ There's no participant authentication or duplicate-submission protection
 beyond `participant_id` being whatever the participant typed in — if you
 need to guard against the same person submitting twice, dedupe on
 `participant_id` when analyzing the Sheet.
+
+### Completion tracking (the `completions` tab)
+
+Once a participant reaches the end page — which only happens after every
+one of the 360 trials has a rating, since "Next" is disabled until one is
+selected — `submitCompletion()` fires once (same fire-and-forget pattern as
+above) with:
+
+```
+participant_id, completed=true, completion_time, total_answered
+```
+
+`Code.gs` detects this payload (`type: "completion"`) and routes it to a
+**separate `completions` sheet tab**, auto-created on first use, instead of
+mixing it into the `responses` tab. Use this tab to tell who actually
+finished vs. who dropped out partway through — anyone who closed the tab
+early will have rows in `responses` but no row in `completions`.
+
+**If you already deployed an earlier version of `Code.gs`** (before this
+`completions` tab existed), you need to re-paste the updated
+`google_apps_script/Code.gs` into your Apps Script project and create a
+**new deployment version** (Deploy → Manage deployments → edit → New
+version → Deploy) for this to take effect — just saving the script isn't
+enough, same as any other `Code.gs` change.
+
+### Cleaning rules before analysis
+
+When you pull data out of the Sheet for analysis, apply both of these:
+
+1. **Dedupe `responses` rows**: group by `(participant_id,
+   trial_index_global)`, keep only the row with the latest
+   `server_received_at` (falls back to `timestamp` if needed) — this is the
+   participant's final answer for that trial after any Back-revisions.
+2. **Filter to completed participants only**: keep only `participant_id`
+   values that have a row in the `completions` tab with `completed=true`.
+   Anyone who dropped out mid-task will have partial `responses` rows but no
+   `completions` row — exclude them from the formal pretest results.
 
 ## 6. Data field reference
 
