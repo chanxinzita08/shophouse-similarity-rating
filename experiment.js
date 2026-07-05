@@ -27,6 +27,7 @@ const CONFIG = {
   TRIALS_CSV_PATH: "./trials.csv",
   IMAGES_DIR: "./images/",
   IMAGE_DISPLAY_HEIGHT_PX: 480,
+  PROGRESS_GROUP_SIZE: 30, // 360 trials / 30 = 12 even groups for the jump-to-trial grid
 
   SIMILARITY_LABELS: {
     1: "not similar at all",
@@ -47,6 +48,8 @@ const TRIAL_CSV_COLUMNS = [
 let participantInfo = {};
 let trialRecords = [];   // one entry per trial, fixed order, filled/overwritten as answered
 let currentIndex = 0;
+let maxReachedIndex = 0; // furthest trial reached so far — jump-to-trial grid only allows navigating within this range
+let viewedGroup = 0;     // which group of PROGRESS_GROUP_SIZE squares is currently shown in the grid
 let currentTrialRenderTime = null;
 let jsPsychInstance;
 
@@ -202,6 +205,8 @@ function renderCurrentTrial(container) {
   const total = trialRecords.length;
   const record = trialRecords[currentIndex];
   currentTrialRenderTime = performance.now();
+  maxReachedIndex = Math.max(maxReachedIndex, currentIndex);
+  viewedGroup = Math.floor(currentIndex / CONFIG.PROGRESS_GROUP_SIZE);
 
   const buttonsHtml = [1, 2, 3, 4, 5, 6, 7].map(n => {
     const label = CONFIG.SIMILARITY_LABELS[n]
@@ -212,6 +217,7 @@ function renderCurrentTrial(container) {
 
   container.innerHTML = `
     <div class="progress-text">Trial ${currentIndex + 1} of ${total}</div>
+    <div id="progress-grid"></div>
     <div class="stim-pair">
       <img class="facade-img" src="${CONFIG.IMAGES_DIR + encodeURIComponent(record.left_image)}">
       <img class="facade-img" src="${CONFIG.IMAGES_DIR + encodeURIComponent(record.right_image)}">
@@ -223,6 +229,8 @@ function renderCurrentTrial(container) {
       <button type="button" id="next-btn" class="jspsych-btn"${record.similarity_rating === null ? " disabled" : ""}>Next</button>
     </div>
   `;
+
+  renderProgressGrid(container);
 
   container.querySelectorAll(".likert-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -250,6 +258,57 @@ function renderCurrentTrial(container) {
     } else {
       jsPsychInstance.finishTrial();
     }
+  });
+}
+
+// Clickable grid of trial numbers, grouped in batches of CONFIG.PROGRESS_GROUP_SIZE
+// (360 trials / 30 = 12 groups). Only trials already reached (<= maxReachedIndex)
+// are clickable — clicking one jumps straight to it (Back/re-answer semantics
+// apply, same as the Back button). Switching groups only changes which
+// batch of squares is shown, it doesn't move currentIndex by itself.
+function renderProgressGrid(container) {
+  const gridEl = container.querySelector("#progress-grid");
+  const total = trialRecords.length;
+  const groupSize = CONFIG.PROGRESS_GROUP_SIZE;
+  const nGroups = Math.ceil(total / groupSize);
+
+  const groupButtonsHtml = Array.from({ length: nGroups }, (_, g) => {
+    const start = g * groupSize + 1;
+    const end = Math.min((g + 1) * groupSize, total);
+    return `<button type="button" class="group-btn${g === viewedGroup ? " active" : ""}" data-group="${g}">${start}-${end}</button>`;
+  }).join("");
+
+  const groupStart = viewedGroup * groupSize;
+  const groupEnd = Math.min(groupStart + groupSize, total);
+  const squaresHtml = [];
+  for (let i = groupStart; i < groupEnd; i++) {
+    const classes = ["trial-square"];
+    if (i === currentIndex) classes.push("current");
+    if (trialRecords[i].similarity_rating !== null) classes.push("answered");
+    const reachable = i <= maxReachedIndex;
+    if (!reachable) classes.push("unreached");
+    squaresHtml.push(
+      `<button type="button" class="${classes.join(" ")}" data-index="${i}"${reachable ? "" : " disabled"}>${i + 1}</button>`
+    );
+  }
+
+  gridEl.innerHTML = `
+    <div class="group-selector">${groupButtonsHtml}</div>
+    <div class="trial-grid">${squaresHtml.join("")}</div>
+  `;
+
+  gridEl.querySelectorAll(".group-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      viewedGroup = parseInt(btn.dataset.group, 10);
+      renderProgressGrid(container);
+    });
+  });
+
+  gridEl.querySelectorAll(".trial-square:not([disabled])").forEach(btn => {
+    btn.addEventListener("click", () => {
+      currentIndex = parseInt(btn.dataset.index, 10);
+      renderCurrentTrial(container);
+    });
   });
 }
 
@@ -313,8 +372,16 @@ function exportResults() {
 function infoPage(html, continueText) {
   return {
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<div class="info-page">${html}<p class="continue-hint">${continueText || "Press SPACE to continue"}</p></div>`,
+    stimulus: `<div class="info-page">${html}
+      <button type="button" id="continue-btn" class="jspsych-btn">Continue</button>
+      <p class="continue-hint">${continueText || "Press SPACE or tap Continue"}</p>
+    </div>`,
     choices: [" "],
+    on_load: () => {
+      document.getElementById("continue-btn").addEventListener("click", () => {
+        jsPsychInstance.finishTrial();
+      });
+    },
   };
 }
 

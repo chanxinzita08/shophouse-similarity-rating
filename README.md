@@ -150,15 +150,16 @@ deployment's "Who has access" wasn't set to "Anyone".
    repeatedly."*
 4. Main trials (all 360, one continuous randomized sequence — no blocks, no
    practice): both facades shown side by side. A **"Trial X of 360"**
-   counter is shown above every pair. Click a number **1–7** (1 = not
-   similar at all, 4 = moderate/unsure, 7 = highly similar) — clicking a
-   different number changes the selection — then click **Next** to confirm
-   and advance. No score is disallowed; participants are free to use the
-   extremes as often as they judge appropriate. A **Back** button (disabled
-   only on trial 1) lets the participant return to any earlier trial one
-   step at a time; that trial's previous rating is shown pre-selected, and
-   clicking a different number + **Next** overwrites it and moves forward
-   again (see section 5 for exactly what "overwrites" means server-side).
+   counter is shown above every pair, plus a **clickable jump-to-trial
+   grid** (see below). Click a number **1–7** (1 = not similar at all, 4 =
+   moderate/unsure, 7 = highly similar) — clicking a different number
+   changes the selection — then click **Next** to confirm and advance. No
+   score is disallowed; participants are free to use the extremes as often
+   as they judge appropriate. A **Back** button (disabled only on trial 1)
+   lets the participant return to the immediately preceding trial; that
+   trial's previous rating is shown pre-selected, and clicking a different
+   number + **Next** overwrites it and moves forward again (see section 5
+   for exactly what "overwrites" means server-side).
 5. End page — responses have already been sent to the Google Sheet
    automatically as the participant went; there's also a **Download CSV**
    button for a personal/local copy.
@@ -172,6 +173,31 @@ Back/re-answer needed manual state management instead.
 Left/right position of `image_A` vs `image_B` is randomized per trial
 (`left_right_swapped`), independent of the underlying pair or condition, so
 screen side is never confounded with anything.
+
+### Jump-to-trial grid
+
+Above the image pair, the trial numbers 1–360 are shown as small clickable
+squares, split into 12 groups of `CONFIG.PROGRESS_GROUP_SIZE` (default 30 —
+`1–30`, `31–60`, ... `331–360`) so the grid stays a manageable size instead
+of showing all 360 at once. A row of group buttons switches which batch of
+30 squares is displayed (just browsing — doesn't move you anywhere by
+itself); clicking an individual square jumps straight to that trial, same
+as clicking Back repeatedly. Square styling: **highlighted border** = the
+trial you're currently on, **green fill** = already answered, **dimmed /
+disabled** = not reached yet (only trials up to the furthest one you've
+reached so far are clickable, i.e. you can revisit but not skip ahead).
+
+### Mobile support
+
+The Welcome/Instructions pages originally only advanced on a SPACE keypress
+— there is no physical spacebar on a phone, so this was a hard blocker for
+mobile participants. They now also show a tappable **Continue** button
+(`infoPage()` in `experiment.js`), and the spacebar still works for desktop
+users who prefer it. Below 600px viewport width, the facade pair stacks
+vertically instead of side-by-side, the 1-7 rating buttons shrink and drop
+their text labels (the number + on-screen instructions still convey the
+scale), and info pages get tighter padding — see the `@media (max-width:
+600px)` block at the end of `style.css`.
 
 ## 5. How data collection actually works, and its limits
 
