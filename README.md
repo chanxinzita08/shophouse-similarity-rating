@@ -149,14 +149,25 @@ deployment's "Who has access" wasn't set to "Anyone".
    rating scale whenever appropriate, rather than giving the same score
    repeatedly."*
 4. Main trials (all 360, one continuous randomized sequence — no blocks, no
-   practice): both facades shown side by side. Click a number **1–7** (1 =
-   not similar at all, 4 = moderate/unsure, 7 = highly similar) — clicking a
+   practice): both facades shown side by side. A **"Trial X of 360"**
+   counter is shown above every pair. Click a number **1–7** (1 = not
+   similar at all, 4 = moderate/unsure, 7 = highly similar) — clicking a
    different number changes the selection — then click **Next** to confirm
    and advance. No score is disallowed; participants are free to use the
-   extremes as often as they judge appropriate.
+   extremes as often as they judge appropriate. A **Back** button (disabled
+   only on trial 1) lets the participant return to any earlier trial one
+   step at a time; that trial's previous rating is shown pre-selected, and
+   clicking a different number + **Next** overwrites it and moves forward
+   again (see section 5 for exactly what "overwrites" means server-side).
 5. End page — responses have already been sent to the Google Sheet
    automatically as the participant went; there's also a **Download CSV**
    button for a personal/local copy.
+
+All 360 trials are handled by a single custom screen (`ratingAppNode` /
+`renderCurrentTrial()` in `experiment.js`) that manually tracks a
+`currentIndex` into a pre-built `trialRecords` array, rather than one
+jsPsych timeline node per trial — jsPsych's timeline only moves forward, so
+Back/re-answer needed manual state management instead.
 
 Left/right position of `image_A` vs `image_B` is randomized per trial
 (`left_right_swapped`), independent of the underlying pair or condition, so
@@ -164,12 +175,31 @@ screen side is never confounded with anything.
 
 ## 5. How data collection actually works, and its limits
 
-Right after each trial is confirmed (clicking **Next**), the result is:
-1. Pushed into the in-page `allRecords` array,
-2. Written to `localStorage` (key: `similarity_rating_progress_<participant_id>`)
-   as a same-device safety net,
+Right after each trial is confirmed (clicking **Next** — including
+re-confirming a trial you revisited via **Back**), the result is:
+1. Updated in place in the in-page `trialRecords[]` array (indexed by
+   `trial_index_global`, so a revised answer overwrites the in-memory copy
+   of that trial),
+2. The **entire current `trialRecords[]` array** is re-written to
+   `localStorage` (key: `similarity_rating_progress_<participant_id>`) —
+   this is autosaved on literally every "Next" click, i.e. every single
+   trial, which is the finest granularity possible (there's no reason to
+   save less often than this — the write is local and effectively free).
 3. **POSTed to the Google Sheets Web App** (`submitToSheet()` in
    `experiment.js`) — this is the real, centralized data collection.
+
+**Important: revisiting and changing an answer sends a *new* row to the
+Sheet rather than editing the old one** — Apps Script's `appendRow` only
+appends, it doesn't look up and update existing rows. So if a participant
+uses Back to change trial 42 from a 3 to a 6, the Sheet will end up with
+*two* rows for `trial_index_global = 42` (same `participant_id`), one with
+`similarity_rating = 3` and an earlier `server_received_at`, one with `6`
+and a later one. **When analyzing the Sheet, group by
+`(participant_id, trial_index_global)` and keep only the row with the
+latest `server_received_at` (or `timestamp`)** to get each trial's final
+answer. The downloaded CSV (`exportResults()` / Download CSV button) does
+NOT have this issue — it always reflects the current, final in-memory
+state of `trialRecords[]`, one row per trial.
 
 Sending per-trial (rather than one bulk upload at the end) means a
 participant who closes the tab partway through still leaves their completed
@@ -177,7 +207,7 @@ trials in the Sheet. The `fetch(...)` call uses `mode: "no-cors"` because
 Apps Script Web Apps don't return CORS headers — this is expected and means
 the page can't confirm the submission succeeded from JS, but the row still
 gets written. If `GOOGLE_SHEET_WEB_APP_URL` is left as the placeholder, the
-page still works end-to-end (rating/Next/etc.), it just logs a console
+page still works end-to-end (rating/Next/Back/etc.), it just logs a console
 warning and doesn't send anywhere except `localStorage` and the optional
 CSV download — useful for local testing without a deployed Sheet.
 

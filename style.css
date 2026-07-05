@@ -90,9 +90,26 @@ html, body {
   color: #f0f0f0;
 }
 
-#next-btn:disabled {
+/* ── progress indicator + Back/Next navigation ── */
+.progress-text {
+  font-size: 14px;
+  color: #9aa0a6;
+  margin-bottom: 12px;
+}
+
+.nav-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+}
+
+.nav-buttons button:disabled {
   background: #555;
   cursor: not-allowed;
+}
+
+.secondary-btn {
+  background: #444;
 }
 
 /* ── instructions / welcome / end pages ── */
