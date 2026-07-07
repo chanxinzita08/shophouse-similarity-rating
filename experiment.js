@@ -26,8 +26,17 @@
 // revised answer after going Back — so autosave granularity is every single
 // trial (the finest possible interval; see README for why coarser intervals
 // aren't needed).
+//
+// ALSO dual-written to Feishu/Lark Bitable (FEISHU_*_WEBHOOK_URL below) —
+// mainland China participants often can't reach Google services without a
+// VPN, so this is a same-shape backup destination that's reachable without
+// one. The two writes are independent fire-and-forget fetches (own .catch()
+// each) — neither depends on or blocks the other, so one being down doesn't
+// affect the other.
 
 const GOOGLE_SHEET_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw9sFFFr6WoIIJuRuHv4z1Wnezf6eE-PPcqGUMP0J30ez37OVFfF6egMeiVzBZX8sh6pw/exec";
+const FEISHU_COMPLETIONS_WEBHOOK_URL = "https://pcnavryurm7z.feishu.cn/base/automation/webhook/event/QhetaIJVHwycudhVNZ6ciCOSngg";
+const FEISHU_RESPONSES_WEBHOOK_URL = "https://pcnavryurm7z.feishu.cn/base/automation/webhook/event/YWtFaXlh0winE9hHUOzcAH8XnDb";
 
 const CONFIG = {
   TRIALS_CSV_PATH: "./trials.csv",
@@ -248,14 +257,21 @@ function shuffle(array) {
 
 function submitToSheet(record) {
   if (!GOOGLE_SHEET_WEB_APP_URL || GOOGLE_SHEET_WEB_APP_URL.startsWith("PASTE_")) {
-    console.warn("GOOGLE_SHEET_WEB_APP_URL not configured — trial not sent to server (still saved locally).");
-    return;
+    console.warn("GOOGLE_SHEET_WEB_APP_URL not configured — trial not sent to Google (still saved locally).");
+  } else {
+    fetch(GOOGLE_SHEET_WEB_APP_URL, {
+      method: "POST",
+      mode: "no-cors",
+      body: JSON.stringify(record),
+    }).catch((e) => console.warn("submitToSheet (Google) failed:", e));
   }
-  fetch(GOOGLE_SHEET_WEB_APP_URL, {
-    method: "POST",
-    mode: "no-cors",
-    body: JSON.stringify(record),
-  }).catch((e) => console.warn("submitToSheet failed:", e));
+  if (FEISHU_RESPONSES_WEBHOOK_URL) {
+    fetch(FEISHU_RESPONSES_WEBHOOK_URL, {
+      method: "POST",
+      mode: "no-cors",
+      body: JSON.stringify(record),
+    }).catch((e) => console.warn("submitToSheet (Feishu) failed:", e));
+  }
 }
 
 // Sent once, when the participant reaches the end page having answered all
@@ -276,14 +292,21 @@ function submitCompletion() {
     familiarity: participantInfo.familiarity || "",
   };
   if (!GOOGLE_SHEET_WEB_APP_URL || GOOGLE_SHEET_WEB_APP_URL.startsWith("PASTE_")) {
-    console.warn("GOOGLE_SHEET_WEB_APP_URL not configured — completion not sent to server.");
-    return;
+    console.warn("GOOGLE_SHEET_WEB_APP_URL not configured — completion not sent to Google.");
+  } else {
+    fetch(GOOGLE_SHEET_WEB_APP_URL, {
+      method: "POST",
+      mode: "no-cors",
+      body: JSON.stringify(payload),
+    }).catch((e) => console.warn("submitCompletion (Google) failed:", e));
   }
-  fetch(GOOGLE_SHEET_WEB_APP_URL, {
-    method: "POST",
-    mode: "no-cors",
-    body: JSON.stringify(payload),
-  }).catch((e) => console.warn("submitCompletion failed:", e));
+  if (FEISHU_COMPLETIONS_WEBHOOK_URL) {
+    fetch(FEISHU_COMPLETIONS_WEBHOOK_URL, {
+      method: "POST",
+      mode: "no-cors",
+      body: JSON.stringify(payload),
+    }).catch((e) => console.warn("submitCompletion (Feishu) failed:", e));
+  }
 }
 
 // =============================================================================
