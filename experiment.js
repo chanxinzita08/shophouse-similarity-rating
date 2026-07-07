@@ -2,12 +2,18 @@
 // Structure/conventions (CSV parsing, shuffle, localStorage safety net, CSV
 // export via Blob download) are deliberately reused from
 // eeg_similarity_task/experiment.js. This task has no fixation/blank/second-
-// image sequence, no practice, no blocks — both facades are shown together
-// and the participant rates similarity on a 1-7 scale by CLICKING a button
-// (not a keypress), can change their selection before confirming with
-// "Next", and there is no confidence rating.
+// image sequence, no blocks — both facades are shown together and the
+// participant rates similarity on a 1-7 scale by CLICKING a button (not a
+// keypress), can change their selection before confirming with "Next", and
+// there is no confidence rating.
 //
-// All 360 trials are driven by ONE custom jsPsych node (ratingAppNode) that
+// 22 fixed practice trials (same curated set used in similarity_rating_pretest_v1
+// .._v5, is_practice=true rows in trials.csv) always come first in their
+// fixed order, followed by all 360 formal trials (shuffled). Practice
+// trials are excluded from the "Trial X of N" formal count and shown as
+// "Practice X of 22" instead — see progressLabel().
+//
+// All trials are driven by ONE custom jsPsych node (ratingAppNode) that
 // manually manages a currentIndex + Back/Next navigation, instead of one
 // jsPsych timeline node per trial — jsPsych's timeline is forward-only, so
 // "go back and re-answer a previous trial" needs manual state management.
@@ -67,6 +73,11 @@ const STRINGS = {
     backBtn: "Back",
     nextBtn: "Next",
     trialLabel: (i, n) => `Trial ${i} of ${n}`,
+    practiceTag: "(practice — not scored)",
+    practiceLabel: (i, n) => `Practice ${i} of ${n}`,
+    practiceCompleteTitle: "Practice complete",
+    practiceCompleteBody1: "Those were practice trials only — they are not scored and won't be included in the results.",
+    practiceCompleteBody2: (n) => `The main task will now begin (${n} trials). The same rating scale and controls apply.`,
 
     endTitle: "All done",
     endBody1: "All responses have been saved. You may now close this page.",
@@ -111,6 +122,11 @@ const STRINGS = {
     backBtn: "上一题",
     nextBtn: "下一题",
     trialLabel: (i, n) => `第 ${i} / ${n} 题`,
+    practiceTag: "（练习题，不计分）",
+    practiceLabel: (i, n) => `练习 ${i} / ${n}`,
+    practiceCompleteTitle: "练习完成",
+    practiceCompleteBody1: "以上是练习题，不计分，不会计入最终结果。",
+    practiceCompleteBody2: (n) => `正式任务即将开始（共 ${n} 题）。评分方式和操作方法相同。`,
 
     endTitle: "全部完成",
     endBody1: "所有回答已保存，您现在可以关闭此页面。",
@@ -151,7 +167,7 @@ const TRIAL_CSV_COLUMNS = [
   "visual_A", "visual_B", "graph_A", "graph_B",
   "visual_similarity_score", "graph_similarity_score", "screening_score",
   "similarity_rating", "rating_onset", "rating_rt_ms",
-  "trial_end_time", "timestamp",
+  "trial_end_time", "timestamp", "is_practice",
 ];
 
 let participantInfo = {};
@@ -161,6 +177,7 @@ let maxReachedIndex = 0; // furthest trial reached so far — jump-to-trial grid
 let viewedGroup = 0;     // which group of PROGRESS_GROUP_SIZE squares is currently shown in the grid
 let currentTrialRenderTime = null;
 let jsPsychInstance;
+let practiceCount = 0; // set once trials.csv is loaded
 
 // =============================================================================
 // CSV parsing (same minimal RFC4180-ish parser used elsewhere in this project)
@@ -298,6 +315,7 @@ function buildTrialRecords(orderedTrials) {
       visual_similarity_score: trial.visual_similarity_score,
       graph_similarity_score: trial.graph_similarity_score,
       screening_score: trial.screening_score,
+      is_practice: String(trial.is_practice).toLowerCase() === "true",
       similarity_rating: null,
       rating_onset: null,
       rating_rt_ms: null,
@@ -315,7 +333,23 @@ function finalizeRecord(record) {
   submitToSheet(record); // appends a fresh row even on a re-answer/revision — see README
 }
 
+function progressLabel(index) {
+  const record = trialRecords[index];
+  if (record.is_practice) {
+    return t("practiceLabel", index + 1, practiceCount);
+  }
+  return t("trialLabel", index - practiceCount + 1, trialRecords.length - practiceCount);
+}
+
 function renderCurrentTrial(container) {
+  // One-time transition screen right as we cross from the last practice
+  // trial into the first formal trial.
+  if (currentIndex === practiceCount && practiceCount > 0 && !container.dataset.practiceTransitionShown) {
+    container.dataset.practiceTransitionShown = "1";
+    renderPracticeTransition(container);
+    return;
+  }
+
   const total = trialRecords.length;
   const record = trialRecords[currentIndex];
   currentTrialRenderTime = performance.now();
@@ -336,7 +370,7 @@ function renderCurrentTrial(container) {
 
   container.innerHTML = `
     <div class="trial-header">
-      <div class="progress-text">${t("trialLabel", currentIndex + 1, total)}</div>
+      <div class="progress-text">${progressLabel(currentIndex)}${record.is_practice ? " " + t("practiceTag") : ""}</div>
       ${langToggleHtml()}
     </div>
     <div id="progress-grid"></div>
@@ -384,8 +418,27 @@ function renderCurrentTrial(container) {
   });
 }
 
+function renderPracticeTransition(container) {
+  const nFormal = trialRecords.length - practiceCount;
+  container.innerHTML = `
+    <div class="info-page" id="practice-transition-tap">
+      ${langToggleHtml()}
+      <h2>${t("practiceCompleteTitle")}</h2>
+      <p>${t("practiceCompleteBody1")}</p>
+      <p>${t("practiceCompleteBody2", nFormal)}</p>
+      <button type="button" class="jspsych-btn">${t("continueBtn")}</button>
+      <p class="continue-hint">${t("continueHintDefault")}</p>
+    </div>
+  `;
+  attachLangToggle(container, () => renderPracticeTransition(container));
+  container.querySelector("#practice-transition-tap").addEventListener("click", (e) => {
+    if (e.target.closest("#lang-toggle-btn")) return;
+    renderCurrentTrial(container);
+  }, { once: true });
+}
+
 // Clickable grid of trial numbers, grouped in batches of CONFIG.PROGRESS_GROUP_SIZE
-// (360 trials / 30 = 12 groups). Only trials already reached (<= maxReachedIndex)
+// (382 trials incl. practice / 30 ≈ 13 groups). Only trials already reached (<= maxReachedIndex)
 // are clickable — clicking one jumps straight to it (Back/re-answer semantics
 // apply, same as the Back button). Switching groups only changes which
 // batch of squares is shown, it doesn't move currentIndex by itself.
@@ -657,7 +710,13 @@ async function main() {
     return;
   }
 
-  const orderedTrials = shuffle(trials);
+  // Practice trials stay in their fixed curated order (never shuffled) and
+  // always come first; only the formal trials are randomized per participant.
+  const practiceTrials = trials.filter(tr => String(tr.is_practice).toLowerCase() === "true");
+  const formalTrials = trials.filter(tr => String(tr.is_practice).toLowerCase() !== "true");
+  practiceCount = practiceTrials.length;
+  const orderedTrials = practiceTrials.concat(shuffle(formalTrials));
+
   trialRecords = buildTrialRecords(orderedTrials);
   currentIndex = 0;
 
