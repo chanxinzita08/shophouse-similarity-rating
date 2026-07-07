@@ -1,9 +1,13 @@
 // Google Apps Script — receives one POST per completed trial from
-// similarity_rating_pretest/experiment.js and appends a row to a
-// PER-PARTICIPANT tab (one tab per participant_id, e.g. "P01") — appropriate
-// for small studies (well under Google Sheets' ~200-tab-per-spreadsheet
-// limit; do NOT use this per-participant layout for large-N online studies,
-// switch back to one shared "responses" tab instead, see git history).
+// similarity_rating_pretest/experiment.js AND from every
+// similarity_rating_pretest_v1..v5/experiment.js copy (they all share this
+// SAME deployment/URL — only one Code.gs to maintain, one redeploy needed
+// after editing this file). Appends a row to a PER-PARTICIPANT tab (one tab
+// per participant_id, e.g. "P01") — appropriate for small studies (well
+// under Google Sheets' ~200-tab-per-spreadsheet limit; do NOT use this
+// per-participant layout for large-N online studies, switch back to one
+// shared "responses" tab instead, see git history). Each row records which
+// `version` (v1-v5, or blank for the original) the participant did.
 //
 // Also receives one POST per participant when they reach the end page
 // (submitCompletion() in experiment.js, `type: "completion"`), which is
@@ -14,20 +18,30 @@
 //
 // See README.md section "Server-side data collection" for the full
 // copy-paste deployment steps.
+//
+// NOTE on the `completions` tab specifically: ensureHeader_() only writes a
+// header row into a brand-new, empty tab — if `completions` already exists
+// from before this COMPLETION_COLUMNS change (e.g. from earlier testing),
+// its header row will still show the OLD, shorter column list. New rows
+// after this update will have MORE values than the existing header labels.
+// Fix by manually editing that tab's header row to match COMPLETION_COLUMNS
+// below (do not delete the tab if it has real in-progress participants'
+// rows in it already).
 
 const COMPLETIONS_SHEET_NAME = "completions";
 
 const COLUMNS = [
-  "participant_id", "trial_index_global", "trial_id", "condition",
+  "participant_id", "version", "trial_index_global", "trial_id", "condition",
   "original_image_A", "original_image_B", "left_image", "right_image", "left_right_swapped",
   "visual_A", "visual_B", "graph_A", "graph_B",
   "visual_similarity_score", "graph_similarity_score", "screening_score",
   "similarity_rating", "rating_onset", "rating_rt_ms",
-  "trial_end_time", "timestamp",
+  "trial_end_time", "timestamp", "is_practice",
 ];
 
 const COMPLETION_COLUMNS = [
-  "participant_id", "completed", "completion_time", "total_answered",
+  "participant_id", "version", "completed", "completion_time", "total_answered",
+  "age", "gender", "nationality", "background", "familiarity",
 ];
 
 function doPost(e) {

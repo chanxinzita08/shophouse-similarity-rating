@@ -91,10 +91,39 @@ html, body {
 }
 
 /* ── progress indicator + Back/Next navigation ── */
+.trial-header {
+  position: relative;
+  margin-bottom: 8px;
+}
+
 .progress-text {
   font-size: 14px;
   color: #9aa0a6;
-  margin-bottom: 8px;
+}
+
+/* ── language toggle: top-right on every screen ── */
+.lang-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 12px;
+  padding: 4px 10px;
+  background: #2b2b2d;
+  color: #cfd3d8;
+  border: 1px solid #555;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.lang-toggle:hover {
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.info-page .lang-toggle,
+#participant-info-form .lang-toggle {
+  top: 12px;
+  right: 12px;
 }
 
 /* ── jump-to-trial grid, grouped in batches of CONFIG.PROGRESS_GROUP_SIZE ── */

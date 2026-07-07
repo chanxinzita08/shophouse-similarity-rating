@@ -28,13 +28,122 @@ const CONFIG = {
   IMAGES_DIR: "./images/",
   IMAGE_DISPLAY_HEIGHT_PX: 480,
   PROGRESS_GROUP_SIZE: 30, // 360 trials / 30 = 12 even groups for the jump-to-trial grid
+};
 
-  SIMILARITY_LABELS: {
-    1: "not similar at all",
-    4: "moderate / unsure",
-    7: "highly similar",
+// Bilingual strings. t(key, ...args) resolves against currentLang.
+const STRINGS = {
+  en: {
+    switchToLabel: "中文",
+    continueHintDefault: "Press SPACE or tap anywhere to continue",
+    continueBtn: "Continue",
+    submitBtn: "Continue",
+
+    welcomeTitle: "Welcome",
+    welcomeBody: "Thank you for taking part in this study. You will see pairs of building facade photographs, side by side, and rate how similar they are.",
+
+    participantInfoTitle: "Participant information",
+    participantIdLabel: "Participant ID",
+    ageLabel: "Age",
+    genderLabel: "Gender (optional)",
+    nationalityLabel: "Nationality",
+    backgroundQuestion: "Do you have an architecture / design / heritage background?",
+    yes: "Yes",
+    no: "No",
+    familiarityQuestion: "Familiarity with Singapore shophouses (1 = not at all, 7 = very familiar)",
+
+    instructionsTitle: "Instructions",
+    instructionsBody1: 'On each trial you will see two shophouse facade photographs side by side. Please rate: <em>"How similar are these two shophouse facades as architectural types?"</em>',
+    instructionsBody1b: "This is really about your overall impression of stylistic similarity — you can base your judgement on whatever aspects you personally think matter most (for example colours, materials, decorative details, proportions, or anything else that stands out to you).",
+    instructionsBody2: "Click a number from <strong>1 to 7</strong>: 1 = not similar at all &nbsp;&nbsp; 4 = moderate / unsure &nbsp;&nbsp; 7 = highly similar",
+    instructionsBody3: 'You can click a different number to change your answer before confirming — click <strong>Next</strong> once you\'re happy with your choice. You can also click <strong>Back</strong> at any time to revisit an earlier pair and change your answer.',
+    instructionsBody4a: "Please use the full rating scale whenever appropriate, rather than giving the same score repeatedly.",
+    instructionsBody4b: "There are no right or wrong answers — we're interested in your own judgement.",
+    instructionsBody5: 'A counter at the top shows your progress ("Trial X of N"). Take as much time as you need on each trial.',
+
+    questionText: "How similar are these two shophouse facades as architectural types?",
+    similarityLabel1: "not similar at all",
+    similarityLabel4: "moderate / unsure",
+    similarityLabel7: "highly similar",
+    backBtn: "Back",
+    nextBtn: "Next",
+    trialLabel: (i, n) => `Trial ${i} of ${n}`,
+
+    endTitle: "All done",
+    endBody1: "All responses have been saved. You may now close this page.",
+    endBody2: "Thank you for taking part. You can also download a personal copy of your results below if you'd like.",
+    downloadBtn: "Download CSV",
+
+    loadErrorTitle: "Could not load trials.csv",
+    loadErrorBody: "This page needs to be served over http(s), not opened directly as a file:// URL. See README.md section 3.",
+  },
+  zh: {
+    switchToLabel: "English",
+    continueHintDefault: "按空格键或点击任意位置继续",
+    continueBtn: "继续",
+    submitBtn: "继续",
+
+    welcomeTitle: "欢迎",
+    welcomeBody: "感谢您参与本研究。您将看到成对的建筑立面照片，并需要评价它们的相似程度。",
+
+    participantInfoTitle: "参与者信息",
+    participantIdLabel: "参与者编号",
+    ageLabel: "年龄",
+    genderLabel: "性别（可选）",
+    nationalityLabel: "国籍",
+    backgroundQuestion: "您是否有建筑 / 设计 / 文化遗产相关背景？",
+    yes: "是",
+    no: "否",
+    familiarityQuestion: "您对新加坡店屋（shophouse）的熟悉程度（1 = 完全不熟悉，7 = 非常熟悉）",
+
+    instructionsTitle: "任务说明",
+    instructionsBody1: "每一题您将看到两张店屋立面照片并排显示。请评价：<em>“这两张店屋立面在建筑类型上有多相似？”</em>",
+    instructionsBody1b: "这更多是关于您对两张图片整体风格相似度的直觉判断——您可以根据自己认为最重要的任何方面来判断（例如颜色、材质、装饰细节、比例，或其他任何让您觉得相关的方面）。",
+    instructionsBody2: "点击 <strong>1 到 7</strong> 中的一个数字：1 = 完全不相似 &nbsp;&nbsp; 4 = 中等 / 不确定 &nbsp;&nbsp; 7 = 非常相似",
+    instructionsBody3: "确认前可以点击其他数字修改答案——满意后点击<strong>下一题</strong>确认。您也可以随时点击<strong>上一题</strong>返回之前的题目并修改答案。",
+    instructionsBody4a: "请尽量使用完整的评分范围，不要总是给同一个分数。",
+    instructionsBody4b: "没有标准答案——我们想了解您自己的判断。",
+    instructionsBody5: "页面顶部会显示您的进度（“第 X / N 题”）。每一题都可以按您需要的时间慢慢作答。",
+
+    questionText: "这两张店屋立面在建筑类型上有多相似？",
+    similarityLabel1: "完全不相似",
+    similarityLabel4: "中等 / 不确定",
+    similarityLabel7: "非常相似",
+    backBtn: "上一题",
+    nextBtn: "下一题",
+    trialLabel: (i, n) => `第 ${i} / ${n} 题`,
+
+    endTitle: "全部完成",
+    endBody1: "所有回答已保存，您现在可以关闭此页面。",
+    endBody2: "感谢您的参与。如果需要，您也可以在下方下载一份个人结果副本。",
+    downloadBtn: "下载 CSV",
+
+    loadErrorTitle: "无法加载 trials.csv",
+    loadErrorBody: "此页面需要通过 http(s) 访问，不能直接以 file:// 方式打开。详见 README.md 第 3 节。",
   },
 };
+
+let currentLang = "en";
+
+function t(key, ...args) {
+  const entry = STRINGS[currentLang][key];
+  return typeof entry === "function" ? entry(...args) : entry;
+}
+
+function langToggleHtml() {
+  return `<button type="button" id="lang-toggle-btn" class="lang-toggle">${t("switchToLabel")}</button>`;
+}
+
+// Flips currentLang and calls the caller-supplied rerender() so each screen
+// redraws itself in place, without advancing the jsPsych timeline.
+function attachLangToggle(root, rerender) {
+  const btn = root.querySelector("#lang-toggle-btn");
+  if (!btn) return;
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    currentLang = currentLang === "en" ? "zh" : "en";
+    rerender();
+  });
+}
 
 const TRIAL_CSV_COLUMNS = [
   "participant_id", "trial_index_global", "trial_id", "condition",
@@ -143,6 +252,11 @@ function submitCompletion() {
     completed: true,
     completion_time: new Date().toISOString(),
     total_answered: trialRecords.filter(r => r.similarity_rating !== null).length,
+    age: participantInfo.age || "",
+    gender: participantInfo.gender || "",
+    nationality: participantInfo.nationality || "",
+    background: participantInfo.background || "",
+    familiarity: participantInfo.familiarity || "",
   };
   if (!GOOGLE_SHEET_WEB_APP_URL || GOOGLE_SHEET_WEB_APP_URL.startsWith("PASTE_")) {
     console.warn("GOOGLE_SHEET_WEB_APP_URL not configured — completion not sent to server.");
@@ -208,28 +322,37 @@ function renderCurrentTrial(container) {
   maxReachedIndex = Math.max(maxReachedIndex, currentIndex);
   viewedGroup = Math.floor(currentIndex / CONFIG.PROGRESS_GROUP_SIZE);
 
+  const similarityLabels = {
+    1: t("similarityLabel1"),
+    4: t("similarityLabel4"),
+    7: t("similarityLabel7"),
+  };
   const buttonsHtml = [1, 2, 3, 4, 5, 6, 7].map(n => {
-    const label = CONFIG.SIMILARITY_LABELS[n]
-      ? `<div class="likert-label">${CONFIG.SIMILARITY_LABELS[n]}</div>` : "";
+    const label = similarityLabels[n]
+      ? `<div class="likert-label">${similarityLabels[n]}</div>` : "";
     const selectedClass = record.similarity_rating === n ? " selected" : "";
     return `<button type="button" class="likert-btn${selectedClass}" data-value="${n}">${n}${label}</button>`;
   }).join("");
 
   container.innerHTML = `
-    <div class="progress-text">Trial ${currentIndex + 1} of ${total}</div>
+    <div class="trial-header">
+      <div class="progress-text">${t("trialLabel", currentIndex + 1, total)}</div>
+      ${langToggleHtml()}
+    </div>
     <div id="progress-grid"></div>
     <div class="stim-pair">
       <img class="facade-img" src="${CONFIG.IMAGES_DIR + encodeURIComponent(record.left_image)}">
       <img class="facade-img" src="${CONFIG.IMAGES_DIR + encodeURIComponent(record.right_image)}">
     </div>
-    <div class="question-text">How similar are these two shophouse facades as architectural types?</div>
+    <div class="question-text">${t("questionText")}</div>
     <div class="likert-scale">${buttonsHtml}</div>
     <div class="nav-buttons">
-      <button type="button" id="back-btn" class="jspsych-btn secondary-btn"${currentIndex === 0 ? " disabled" : ""}>Back</button>
-      <button type="button" id="next-btn" class="jspsych-btn"${record.similarity_rating === null ? " disabled" : ""}>Next</button>
+      <button type="button" id="back-btn" class="jspsych-btn secondary-btn"${currentIndex === 0 ? " disabled" : ""}>${t("backBtn")}</button>
+      <button type="button" id="next-btn" class="jspsych-btn"${record.similarity_rating === null ? " disabled" : ""}>${t("nextBtn")}</button>
     </div>
   `;
 
+  attachLangToggle(container, () => renderCurrentTrial(container));
   renderProgressGrid(container);
 
   container.querySelectorAll(".likert-btn").forEach(btn => {
@@ -369,61 +492,93 @@ function exportResults() {
 // screening_score, or filenames.
 // =============================================================================
 
-function infoPage(html, continueText) {
+function infoPage(contentFn) {
   return {
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<div class="info-page" id="info-page-tap-target">${html}
-      <button type="button" class="jspsych-btn">Continue</button>
-      <p class="continue-hint">${continueText || "Press SPACE or tap anywhere to continue"}</p>
-    </div>`,
+    stimulus: '<div id="info-page-root"></div>',
     choices: [" "],
     on_load: () => {
-      // Whole box is tappable, not just the button — more reliable on
-      // mobile/tablet than relying on a single small button hitting exactly
-      // right. { once: true } prevents the button's own click bubbling up
-      // to this same listener and firing finishTrial() twice.
-      document.getElementById("info-page-tap-target").addEventListener("click", () => {
-        jsPsychInstance.finishTrial();
-      }, { once: true });
+      renderInfoPage(document.getElementById("info-page-root"), contentFn);
     },
   };
 }
 
-const welcomeNode = infoPage(`
-  <h2>Welcome</h2>
-  <p>Thank you for taking part in this study. You will see pairs of building
-  facade photographs, side by side, and rate how similar they are.</p>
+function renderInfoPage(root, contentFn) {
+  root.innerHTML = `
+    <div class="info-page" id="info-page-tap-target">
+      ${langToggleHtml()}
+      ${contentFn()}
+      <button type="button" class="jspsych-btn">${t("continueBtn")}</button>
+      <p class="continue-hint">${t("continueHintDefault")}</p>
+    </div>
+  `;
+  attachLangToggle(root, () => renderInfoPage(root, contentFn));
+  // Whole box is tappable, not just the button — more reliable on
+  // mobile/tablet than relying on a single small button hitting exactly
+  // right. { once: true } prevents the button's own click bubbling up
+  // to this same listener and firing finishTrial() twice. Guard against the
+  // toggle button itself so switching language doesn't advance the page.
+  root.querySelector("#info-page-tap-target").addEventListener("click", (e) => {
+    if (e.target.closest("#lang-toggle-btn")) return;
+    jsPsychInstance.finishTrial();
+  }, { once: true });
+}
+
+const welcomeNode = infoPage(() => `
+  <h2>${t("welcomeTitle")}</h2>
+  <p>${t("welcomeBody")}</p>
 `);
 
 function participantInfoNode() {
   return {
-    type: jsPsychSurveyHtmlForm,
-    preamble: '<h2 style="text-align:left">Participant information</h2>',
-    html: `
-      <p><label>Participant ID<br><input name="participant_id" type="text" required></label></p>
-      <p><label>Age<br><input name="age" type="number" min="1" max="120" required></label></p>
-      <p><label>Gender (optional)<br><input name="gender" type="text"></label></p>
-      <p>Do you have an architecture / design / heritage background?<br>
-        <label><input type="radio" name="background" value="yes" required> Yes</label>
-        <label><input type="radio" name="background" value="no"> No</label>
-      </p>
-      <p>Familiarity with Singapore shophouses (1 = not at all, 7 = very familiar)<br>
-        <div class="likert-row">
-          ${[1, 2, 3, 4, 5, 6, 7].map(n =>
-            `<span class="likert-option"><input type="radio" name="familiarity" value="${n}" required>${n}</span>`
-          ).join("")}
-        </div>
-      </p>
-    `,
-    button_label: "Continue",
-    on_finish: (data) => {
-      const r = data.response;
-      participantInfo = {
-        participant_id: resolveParticipantId(r.participant_id), age: r.age, gender: r.gender || "",
-        background: r.background, familiarity: r.familiarity,
-      };
+    type: jsPsychHtmlKeyboardResponse,
+    stimulus: '<div id="participant-info-root"></div>',
+    choices: "NO_KEYS",
+    on_load: () => {
+      renderParticipantInfo(document.getElementById("participant-info-root"));
     },
   };
+}
+
+function renderParticipantInfo(root) {
+  const likertRow = (name) =>
+    `<div class="likert-row">${[1, 2, 3, 4, 5, 6, 7].map(n =>
+      `<span class="likert-option"><input type="radio" name="${name}" value="${n}" required>${n}</span>`
+    ).join("")}</div>`;
+
+  root.innerHTML = `
+    <form class="jspsych-survey-html-form" id="participant-info-form" style="position: relative;">
+      ${langToggleHtml()}
+      <h2 style="text-align:left">${t("participantInfoTitle")}</h2>
+      <p><label>${t("participantIdLabel")}<br><input name="participant_id" type="text" required></label></p>
+      <p><label>${t("ageLabel")}<br><input name="age" type="number" min="1" max="120" required></label></p>
+      <p><label>${t("genderLabel")}<br><input name="gender" type="text"></label></p>
+      <p><label>${t("nationalityLabel")}<br><input name="nationality" type="text" required></label></p>
+      <p>${t("backgroundQuestion")}<br>
+        <label><input type="radio" name="background" value="yes" required> ${t("yes")}</label>
+        <label><input type="radio" name="background" value="no"> ${t("no")}</label>
+      </p>
+      <p>${t("familiarityQuestion")}<br>${likertRow("familiarity")}</p>
+      <button type="submit" class="jspsych-btn">${t("submitBtn")}</button>
+    </form>
+  `;
+
+  attachLangToggle(root, () => renderParticipantInfo(root));
+
+  root.querySelector("#participant-info-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const fd = new FormData(form);
+    participantInfo = {
+      participant_id: resolveParticipantId(fd.get("participant_id")),
+      age: fd.get("age"),
+      gender: fd.get("gender") || "",
+      nationality: fd.get("nationality") || "",
+      background: fd.get("background"),
+      familiarity: fd.get("familiarity"),
+    };
+    jsPsychInstance.finishTrial();
+  });
 }
 
 // Appends _02, _03, ... if this exact ID has already been started on this
@@ -439,43 +594,40 @@ function resolveParticipantId(rawId) {
   return count === 1 ? rawId : `${rawId}_${String(count).padStart(2, "0")}`;
 }
 
-const instructionsNode = infoPage(`
-  <h2>Instructions</h2>
-  <p>On each trial you will see two shophouse facade photographs side by
-  side. Please rate:<br>
-  <em>"How similar are these two shophouse facades as architectural
-  types?"</em></p>
-  <p>Click a number from <strong>1 to 7</strong>:<br>
-  1 = not similar at all &nbsp;&nbsp;
-  4 = moderate / unsure &nbsp;&nbsp;
-  7 = highly similar</p>
-  <p>You can click a different number to change your answer before
-  confirming — click <strong>Next</strong> once you're happy with your
-  choice. You can also click <strong>Back</strong> at any time to revisit an
-  earlier pair and change your answer.</p>
-  <p><strong class="emphasis">Please use the full rating scale whenever
-  appropriate, rather than giving the same score repeatedly.</strong> There
-  are no right or wrong answers — we're interested in your own judgement.</p>
-  <p>A counter at the top shows your progress ("Trial X of N"). Take as much
-  time as you need on each trial.</p>
+const instructionsNode = infoPage(() => `
+  <h2>${t("instructionsTitle")}</h2>
+  <p>${t("instructionsBody1")}</p>
+  <p>${t("instructionsBody1b")}</p>
+  <p>${t("instructionsBody2")}</p>
+  <p>${t("instructionsBody3")}</p>
+  <p><strong class="emphasis">${t("instructionsBody4a")}</strong> ${t("instructionsBody4b")}</p>
+  <p>${t("instructionsBody5")}</p>
 `);
 
 function endNode() {
   return {
     type: jsPsychHtmlKeyboardResponse,
-    stimulus: `<div class="info-page">
-      <h2>All done</h2>
-      <p>All responses have been saved. You may now close this page.</p>
-      <p>Thank you for taking part. You can also download a personal copy of
-      your results below if you'd like.</p>
-      <button id="download-btn" class="jspsych-btn">Download CSV</button>
-    </div>`,
+    stimulus: '<div id="end-page-root"></div>',
     choices: "NO_KEYS",
     on_load: () => {
       submitCompletion();
-      document.getElementById("download-btn").addEventListener("click", exportResults);
+      renderEndPage(document.getElementById("end-page-root"));
     },
   };
+}
+
+function renderEndPage(root) {
+  root.innerHTML = `
+    <div class="info-page">
+      ${langToggleHtml()}
+      <h2>${t("endTitle")}</h2>
+      <p>${t("endBody1")}</p>
+      <p>${t("endBody2")}</p>
+      <button id="download-btn" class="jspsych-btn">${t("downloadBtn")}</button>
+    </div>
+  `;
+  attachLangToggle(root, () => renderEndPage(root));
+  root.querySelector("#download-btn").addEventListener("click", exportResults);
 }
 
 // =============================================================================
@@ -490,7 +642,7 @@ async function loadTrials() {
 
 function allImagePaths(trials) {
   const names = new Set();
-  trials.forEach(t => { names.add(t.image_A); names.add(t.image_B); });
+  trials.forEach(tr => { names.add(tr.image_A); names.add(tr.image_B); });
   return Array.from(names).map(n => CONFIG.IMAGES_DIR + encodeURIComponent(n));
 }
 
@@ -500,9 +652,8 @@ async function main() {
     trials = await loadTrials();
   } catch (e) {
     document.getElementById("jspsych-target").innerHTML =
-      `<div class="info-page"><h2>Could not load trials.csv</h2>
-       <p>This page needs to be served over http(s), not opened directly as a
-       file:// URL. See README.md section 3.</p></div>`;
+      `<div class="info-page"><h2>${t("loadErrorTitle")}</h2>
+       <p>${t("loadErrorBody")}</p></div>`;
     return;
   }
 
